@@ -70,8 +70,8 @@ func Execute() {
 	rootCmd.SetHelpTemplate(`{{.UsageString}}`)
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 	rootCmd.Version = GitVersion
-	rootCmd.SetVersionTemplate(`{{with .Name}}{{printf "%s " .}}{{end}}{{printf "version:\t%s" .Version}}
-`)
+	rootCmd.SetVersionTemplate(`{{with .Name}}{{printf "%s " .}}{{end}}{{printf "version:\t%s" .Version}}`)
+
 	err := rootCmd.Execute()
 	if err != nil {
 		os.Exit(1)

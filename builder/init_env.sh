@@ -34,20 +34,6 @@ fi
 
 echo "CLANG_NUM=${CLANG_NUM}"
 
-UNAME_M=`uname -m`
-ARCH="amd64"
-if [[ ${UNAME_M} =~ "x86_64" ]];then
-  ARCH="amd64"
-  elif [[ ${UNAME_M} =~ "aarch64" ]]; then
-    ARCH="arm64"
-  else
-    echo "unsupported arch ${UNAME_M}";
-fi
-
-GOBIN_ZIP="go1.21.0.linux-${ARCH}.tar.gz"
-echo "GOBIN_ZIP:${GOBIN_ZIP}"
-
-
 cd ~
 
 uname -a
@@ -63,13 +49,5 @@ done
 
 clang --version
 
-# 安装golang，设置goproxy
-wget https://golang.google.cn/dl/${GOBIN_ZIP}
-sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf ${GOBIN_ZIP}
-export PATH=/usr/local/go/bin:$PATH
-export GOPROXY=https://goproxy.cn
-
-# clone 源码
-git clone https://github.com/gojue/ecapture.git
-cd ./ecapture || exit
+cd .. || exit
 ${MAKE_ECAPTURE}

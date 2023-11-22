@@ -20,15 +20,6 @@ import (
 	"os"
 )
 
-// CONFIG CHECK ITEMS
-var (
-	configCheckItems = []string{
-		"CONFIG_BPF",
-		"CONFIG_UPROBES",
-		"CONFIG_ARCH_SUPPORTS_UPROBES",
-	}
-)
-
 type UnameInfo struct {
 	SysName    string
 	Nodename   string
@@ -71,9 +62,8 @@ func charsToString(ca [65]byte) string {
 // checkKernelBTF attempts to load the raw vmlinux BTF blob at
 // /sys/kernel/btf/vmlinux and falls back to scanning the file system
 // for vmlinux ELFs.
-
 func checkKernelBTF() (bool, error) {
-	_, err := os.Stat(SysKernelBtfVmlinux)
+	_, err := os.Stat("/sys/kernel/btf/vmlinux")
 
 	// if exist ,return true
 	if err == nil {
@@ -83,7 +73,7 @@ func checkKernelBTF() (bool, error) {
 	return findVMLinux()
 }
 
-// findVMLinux scans multiple well-known paths for vmlinux kernel images.
+// scans multiple well-known paths for vmlinux kernel images.
 func findVMLinux() (bool, error) {
 	kv, err := getOSUnamer()
 	if err != nil {
@@ -114,9 +104,8 @@ func IsEnableBTF() (bool, error) {
 		return false, e
 	}
 
-	bc, found := KernelConfig[ConfigDebugInfoBtf]
+	bc, found := KernelConfig["CONFIG_DEBUG_INFO_BTF"]
 	if !found {
-		// 没有这个配置项
 		return false, nil
 	}
 
@@ -125,6 +114,7 @@ func IsEnableBTF() (bool, error) {
 		// 没有开启
 		return false, nil
 	}
+
 	return true, nil
 }
 
@@ -138,7 +128,7 @@ func IsEnableBPF() (bool, error) {
 		return false, e
 	}
 
-	for _, item := range configCheckItems {
+	for _, item := range []string{"CONFIG_BPF", "CONFIG_UPROBES", "CONFIG_ARCH_SUPPORTS_UPROBES"} {
 		bc, found := KernelConfig[item]
 		if !found {
 			// 没有这个配置项

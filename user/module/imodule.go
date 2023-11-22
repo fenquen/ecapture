@@ -124,6 +124,7 @@ func (m *Module) Name() string {
 
 func (m *Module) Run() error {
 	m.logger.Printf("ECAPTURE ::\tModule.Run()")
+
 	//  start
 	err := m.child.Start()
 	if err != nil {
@@ -145,6 +146,7 @@ func (m *Module) Run() error {
 
 	return nil
 }
+
 func (m *Module) Stop() error {
 	return nil
 }

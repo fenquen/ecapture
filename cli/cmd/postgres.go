@@ -48,36 +48,38 @@ func init() {
 func postgresCommandFunc(command *cobra.Command, args []string) {
 	stopper := make(chan os.Signal, 1)
 	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
+
 	ctx, cancelFun := context.WithCancel(context.TODO())
 
-	mod := module.GetModuleByName(module.ModuleNamePostgres)
+	postgresModule := module.GetModuleByName(module.ModuleNamePostgres)
 
 	logger := log.New(os.Stdout, "postgress_", log.LstdFlags)
 	logger.Printf("ECAPTURE :: version :%s", GitVersion)
-	logger.Printf("ECAPTURE :: start to run %s module", mod.Name())
+	logger.Printf("ECAPTURE :: start to run %s module", postgresModule.Name())
 
 	// save global config
 	gConf, e := getGlobalConf(command)
 	if e != nil {
 		logger.Fatal(e)
-		os.Exit(1)
 	}
+
 	logger.SetOutput(gConf.writer)
+
 	postgresConfig.Pid = gConf.Pid
 	postgresConfig.Debug = gConf.Debug
 	postgresConfig.IsHex = gConf.IsHex
 
 	log.Printf("ECAPTURE :: pid info: %d", os.Getpid())
+
 	//bc.Pid = globalFlags.Pid
 	if e := postgresConfig.Check(); e != nil {
 		logger.Fatal(e)
-		os.Exit(1)
 	}
+
 	// init
-	err := mod.Init(ctx, logger, postgresConfig)
+	err := postgresModule.Init(ctx, logger, postgresConfig)
 	if err != nil {
 		logger.Fatal(err)
-		os.Exit(1)
 	}
 
 	// 加载ebpf，挂载到hook点上，开始监听
@@ -86,8 +88,11 @@ func postgresCommandFunc(command *cobra.Command, args []string) {
 		if err != nil {
 			logger.Fatalf("%v", err)
 		}
-	}(mod)
+	}(postgresModule)
+
 	<-stopper
+
 	cancelFun()
+
 	os.Exit(0)
 }

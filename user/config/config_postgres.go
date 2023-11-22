@@ -35,17 +35,17 @@ func NewPostgresConfig() *PostgresConfig {
 	return config
 }
 
-func (pc *PostgresConfig) Check() error {
+func (postgresConfig *PostgresConfig) Check() error {
 
-	if pc.PostgresPath == "" || len(strings.TrimSpace(pc.PostgresPath)) <= 0 {
-		return errors.New("Postgres path cant be null.")
+	if postgresConfig.PostgresPath == "" || len(strings.TrimSpace(postgresConfig.PostgresPath)) <= 0 {
+		return errors.New("Postgres path can not be null.")
 	}
 
-	_, e := os.Stat(pc.PostgresPath)
+	_, e := os.Stat(postgresConfig.PostgresPath)
 	if e != nil {
 		return e
 	}
 
-	pc.FuncName = "exec_simple_query"
+	postgresConfig.FuncName = "exec_simple_query"
 	return nil
 }

@@ -1,5 +1,4 @@
 //go:build !androidgki
-// +build !androidgki
 
 // Copyright 2022 CFC4N <cfc4n.cs@gmail.com>. All Rights Reserved.
 //
@@ -34,7 +33,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-type MPostgresProbe struct {
+type PostgresModule struct {
 	Module
 	bpfManager        *manager.Manager
 	bpfManagerOptions manager.Options
@@ -43,50 +42,43 @@ type MPostgresProbe struct {
 }
 
 // init probe
-func (p *MPostgresProbe) Init(ctx context.Context, logger *log.Logger, conf config.IConfig) error {
-	p.Module.Init(ctx, logger, conf)
-	p.conf = conf
-	p.Module.SetChild(p)
-	p.eventMaps = make([]*ebpf.Map, 0, 2)
-	p.eventFuncMaps = make(map[*ebpf.Map]event.IEventStruct)
+func (postgresModule *PostgresModule) Init(ctx context.Context, logger *log.Logger, conf config.IConfig) error {
+	postgresModule.Module.Init(ctx, logger, conf)
+	postgresModule.conf = conf
+	postgresModule.Module.SetChild(postgresModule)
+	postgresModule.eventMaps = make([]*ebpf.Map, 0, 2)
+	postgresModule.eventFuncMaps = make(map[*ebpf.Map]event.IEventStruct)
 	return nil
 }
 
-func (p *MPostgresProbe) Start() error {
-	if err := p.start(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (p *MPostgresProbe) start() error {
-
+func (postgresModule *PostgresModule) Start() error {
 	// fetch ebpf assets
-	var bpfFileName = p.geteBPFName("user/bytecode/postgres_kern.o")
-	p.logger.Printf("%s\tBPF bytecode filename:%s\n", p.Name(), bpfFileName)
+	var bpfFileName = postgresModule.geteBPFName("user/bytecode/postgres_kern.o")
+	postgresModule.logger.Printf("%s\tBPF bytecode filename:%s\n", postgresModule.Name(), bpfFileName)
+
 	byteBuf, err := assets.Asset("user/bytecode/postgres_kern.o")
 	if err != nil {
 		return fmt.Errorf("couldn't find asset")
 	}
 
 	// setup the managers
-	err = p.setupManagers()
+	err = postgresModule.setupManagers()
 	if err != nil {
 		return fmt.Errorf("postgres module couldn't find binPath %v.", err)
 	}
 
 	// initialize the bootstrap manager
-	if err := p.bpfManager.InitWithOptions(bytes.NewReader(byteBuf), p.bpfManagerOptions); err != nil {
-		return fmt.Errorf("couldn't init manager %v.", err)
+	if err := postgresModule.bpfManager.InitWithOptions(bytes.NewReader(byteBuf), postgresModule.bpfManagerOptions); err != nil {
+		return fmt.Errorf("couldn't init manager %v", err)
 	}
 
 	// start the bootstrap manager
-	if err := p.bpfManager.Start(); err != nil {
-		return fmt.Errorf("couldn't start bootstrap manager %v.", err)
+	if err := postgresModule.bpfManager.Start(); err != nil {
+		return fmt.Errorf("couldn't start bootstrap manager %v", err)
 	}
 
 	// 加载map信息，map对应events decode表。
-	err = p.initDecodeFun()
+	err = postgresModule.initDecodeFun()
 	if err != nil {
 		return err
 	}
@@ -94,85 +86,79 @@ func (p *MPostgresProbe) start() error {
 	return nil
 }
 
-func (p *MPostgresProbe) Close() error {
-	if err := p.bpfManager.Stop(manager.CleanAll); err != nil {
-		return fmt.Errorf("couldn't stop manager %v.", err)
-	}
-	return p.Module.Close()
-}
+func (postgresModule *PostgresModule) setupManagers() error {
+	postgresPath := postgresModule.conf.(*config.PostgresConfig).PostgresPath
 
-func (p *MPostgresProbe) setupManagers() error {
-	binaryPath := p.conf.(*config.PostgresConfig).PostgresPath
-
-	_, err := os.Stat(binaryPath)
+	_, err := os.Stat(postgresPath)
 	if err != nil {
 		return err
 	}
-	attachFunc := p.conf.(*config.PostgresConfig).FuncName
 
-	probes := []*manager.Probe{
-		{
-			Section:          "uprobe/exec_simple_query",
-			EbpfFuncName:     "postgres_query",
-			AttachToFuncName: attachFunc,
-			BinaryPath:       binaryPath,
-		},
-	}
+	attachFunc := postgresModule.conf.(*config.PostgresConfig).FuncName
 
-	p.bpfManager = &manager.Manager{
-		Probes: probes,
-		Maps: []*manager.Map{
+	postgresModule.bpfManager = &manager.Manager{
+		Probes: []*manager.Probe{
 			{
-				Name: "events",
+				Section:          "uprobe/exec_simple_query",
+				EbpfFuncName:     "postgres_query",
+				AttachToFuncName: attachFunc,
+				BinaryPath:       postgresPath,
 			},
 		},
+		Maps: []*manager.Map{{Name: "events"}},
 	}
 
-	p.logger.Printf("Postgres, binrayPath: %s, FunctionName: %s\n", binaryPath, attachFunc)
+	postgresModule.logger.Printf("Postgres, binary path: %s, FunctionName: %s\n", postgresPath, attachFunc)
 
-	p.bpfManagerOptions = manager.Options{
+	postgresModule.bpfManagerOptions = manager.Options{
 		DefaultKProbeMaxActive: 512,
-
 		VerifierOptions: ebpf.CollectionOptions{
 			Programs: ebpf.ProgramOptions{
 				LogSize: 2097152,
 			},
 		},
-
 		RLimit: &unix.Rlimit{
 			Cur: math.MaxUint64,
 			Max: math.MaxUint64,
 		},
 	}
+
 	return nil
 }
 
-func (p *MPostgresProbe) DecodeFun(em *ebpf.Map) (event.IEventStruct, bool) {
-	fun, found := p.eventFuncMaps[em]
+func (postgresModule *PostgresModule) Close() error {
+	if err := postgresModule.bpfManager.Stop(manager.CleanAll); err != nil {
+		return fmt.Errorf("couldn't stop manager %v.", err)
+	}
+	return postgresModule.Module.Close()
+}
+
+func (postgresModule *PostgresModule) DecodeFun(em *ebpf.Map) (event.IEventStruct, bool) {
+	fun, found := postgresModule.eventFuncMaps[em]
 	return fun, found
 }
 
-func (p *MPostgresProbe) initDecodeFun() error {
+func (postgresModule *PostgresModule) initDecodeFun() error {
 	// postgresEventsMap to hook
-	postgresEventsMap, found, err := p.bpfManager.GetMap("events")
+	postgresEventsMap, found, err := postgresModule.bpfManager.GetMap("events")
 	if err != nil {
 		return err
 	}
 	if !found {
 		return errors.New("cant found map: events")
 	}
-	p.eventMaps = append(p.eventMaps, postgresEventsMap)
-	p.eventFuncMaps[postgresEventsMap] = &event.PostgresEvent{}
+	postgresModule.eventMaps = append(postgresModule.eventMaps, postgresEventsMap)
+	postgresModule.eventFuncMaps[postgresEventsMap] = &event.PostgresEvent{}
 
 	return nil
 }
 
-func (p *MPostgresProbe) Events() []*ebpf.Map {
-	return p.eventMaps
+func (postgresModule *PostgresModule) Events() []*ebpf.Map {
+	return postgresModule.eventMaps
 }
 
 func init() {
-	mod := &MPostgresProbe{}
+	mod := &PostgresModule{}
 	mod.name = ModuleNamePostgres
 	mod.mType = ProbeTypeUprobe
 	Register(mod)

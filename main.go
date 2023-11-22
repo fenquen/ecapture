@@ -9,30 +9,26 @@ import (
 	"runtime"
 )
 
-const (
-	BtfNotSupport = "You can compile the BTF-free version by using the command `make nocore`, please read the Makefile for more information."
-)
+const BtfNotSupport = "You can compile the BTF-free version by using the command `make nocore`, please read the Makefile for more information."
 
-var (
-	enableCORE = "true"
-)
+var enableCORE = "true"
 
 func main() {
 
-	// 环境检测
-	// 系统内核版本检测
-	kv, err := kernel.HostVersion()
+	// 内核版本
+	kernelVersion, err := kernel.HostVersion()
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	switch runtime.GOARCH {
 	case "amd64":
-		if kv < kernel.VersionCode(4, 18, 0) {
-			log.Fatalf("The Linux/Android Kernel version %v (x86_64) is not supported. Requires a version greater than 4.18.", kv)
+		if kernelVersion < kernel.VersionCode(4, 18, 0) {
+			log.Fatalf("The Linux/Android Kernel version %v (x86_64) is not supported. Requires a version greater than 4.18.", kernelVersion)
 		}
 	case "arm64":
-		if kv < kernel.VersionCode(5, 5, 0) {
-			log.Fatalf("The Linux/Android Kernel version %v (aarch64) is not supported. Requires a version greater than 5.5.", kv)
+		if kernelVersion < kernel.VersionCode(5, 5, 0) {
+			log.Fatalf("The Linux/Android Kernel version %v (aarch64) is not supported. Requires a version greater than 5.5.", kernelVersion)
 		}
 	default:
 		log.Fatalf("Unsupported CPU arch:%v. ", runtime.GOARCH)
@@ -56,7 +52,7 @@ func main() {
 			log.Fatalf("Unsupported kernel, error:%v", e)
 		}
 
-		// changed by go build '-ldflags X'
+		// changed by go build -ldflags "-X 'main.enableCore=false'"
 		if enableCORE == "true" {
 			// BTF支持情况检测
 			enable, e := ebpf.IsEnableBTF()
@@ -64,8 +60,7 @@ func main() {
 				log.Fatalf("Unable to find BTF configuration due to an error:%v.\n"+BtfNotSupport, e)
 			}
 			if !enable {
-				log.Fatal("BTF is not supported, please check it. shell: cat /boot/config-`uname -r` | grep CONFIG_DEBUG_INFO_BTF \n " +
-					BtfNotSupport)
+				log.Fatal("BTF is not supported, please check it. shell: cat /boot/config-`uname -r` | grep CONFIG_DEBUG_INFO_BTF \n " + BtfNotSupport)
 			}
 		}
 	}

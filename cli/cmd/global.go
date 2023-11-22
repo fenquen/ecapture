@@ -72,6 +72,7 @@ func getGlobalConf(command *cobra.Command) (conf GlobalFlags, err error) {
 	if err != nil {
 		return
 	}
+	
 	conf.addrType = loggerTypeStdout
 	conf.writer = os.Stdout
 	if conf.LoggerAddr != "" {
